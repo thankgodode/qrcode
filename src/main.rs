@@ -1,17 +1,18 @@
 mod state;
 
 use axum::{
-    Json, Router, extract::{OriginalUri, Path, Request, State}, http::{HeaderMap, StatusCode, header}, response::IntoResponse, routing::{get, post},
+    Json, Router, extract::{OriginalUri, Path, Request, State}, http::{HeaderMap, StatusCode, header}, response::{Html, IntoResponse}, routing::{get, post},
 };
+
+use base64::{Engine, engine::{self, GeneralPurpose, general_purpose}};
 use serde::{Deserialize, Serialize};
 use qrcode::QrCode;
 use image::Luma;
-use qrcode_gen::Db;
 use sqlx::pool;
 use tokio::{fs::File, io::AsyncReadExt};
 use uuid::Uuid;
 
-use qrcode_gen::state::state::{Employee, UserInfo};
+use qrcode_gen::{Db, state::state::{Employee, UserInfo}};
 
 #[derive(Clone)]
 struct AppState {
@@ -87,11 +88,39 @@ async fn create_user(State(pool):State<AppState>, Json(user_info): Json<UserInfo
 async fn get_user(
     State(pool):State<AppState>,
     Path(id): Path<Uuid>,
-)-> Result<Json<Employee>, StatusCode>{
+)-> Html<String>{
     let db = pool.db;
     let response = db.get_employee(id).await.unwrap();
+    let signature_b64 = general_purpose::STANDARD.encode(&response.signature);
 
-    Ok(Json(response))
+    let signature_b64 = format!("data:image/png;base64,{}",signature_b64);
+
+    let html = format!(
+    r#"
+        <head>
+            <title>User Info</title>
+            </head>
+            <body>
+                <h1>User Info</h1>
+                <p>ID: {}</p>
+                <p>First Name: {}</p>
+                <p>Last Name: {}</p>
+                <p>Signature: <img src={:?}/></p>
+                <p>Contact: {}</p>
+                <img src="data:image/png;base64" alt="QR Code">
+            </body>
+        </html>
+    "#, 
+        response.id,
+        response.first_name,
+        response.last_name,
+        signature_b64,
+        response.contact
+    );
+
+    println!("SIGN: {:?}",html);
+
+    Html(html)
 }
 
 fn generate_qrcode(id: Uuid)-> Result<Vec<u8>, Box<dyn std::error::Error>> {
@@ -108,7 +137,7 @@ fn generate_qrcode(id: Uuid)-> Result<Vec<u8>, Box<dyn std::error::Error>> {
 async fn parse_signature(signature: String)-> Result<Vec<u8>, Box<dyn std::error::Error>>{
     let mut signature_bytes = vec![];
     let mut file = File::open(signature).await?;
-    file.read_buf(&mut signature_bytes).await?;
+    file.read_to_end(&mut signature_bytes).await?;
 
     Ok(signature_bytes)
 }

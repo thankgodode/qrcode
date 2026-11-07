@@ -80,5 +80,9 @@ impl Db {
 
         Ok(employee)
     }
+
+    pub async fn clear_db(&self){
+        
+    }
 }
 

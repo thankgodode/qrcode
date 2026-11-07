@@ -1,6 +1,15 @@
 [package]
-name = "qrcode"
+name = "qrcode-gen"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+axum = "0.8.9"
+dotenvy = "0.15.7"
+image = "0.25.10"
+postgres = "0.19.14"
+qrcode = "0.14.1"
+serde = {version = "1.0.229", features=["derive"]}
+sqlx = { version = "0.9", features = ["postgres", "runtime-tokio", "uuid"] }
+tokio = {version = "1.54.1", features=["full"]}
+uuid = { version = "1", features = ["serde", "v4"] }

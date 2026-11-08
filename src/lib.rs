@@ -1,14 +1,9 @@
 pub mod state;
 
-use axum::{Json, extract::Path, http::StatusCode, response::IntoResponse};
-use image::Luma;
-use qrcode::QrCode;
-use serde::{Deserialize, Serialize};
-use sqlx::{postgres::PgPoolOptions, PgPool};
-use tokio::{fs::File, io::AsyncReadExt};
+use sqlx::{PgPool, postgres::PgPoolOptions};
 use uuid::Uuid;
 
-use state::state::{Employee, UserInfo};
+use state::{Employee, UserInfo};
 
 #[derive(Debug, Clone)]
 pub struct Db {
@@ -45,8 +40,13 @@ impl Db {
         Ok(())
     }
 
-    pub async fn insert(&self, id: Uuid, user_info: UserInfo, qr_code: Vec<u8>, signature: Vec<u8>) -> Result<(), sqlx::Error> {
-
+    pub async fn insert(
+        &self,
+        id: Uuid,
+        user_info: UserInfo,
+        qr_code: Vec<u8>,
+        signature: Vec<u8>,
+    ) -> Result<(), sqlx::Error> {
         sqlx::query!(
             r#"INSERT INTO employees (id, first_name, last_name, contact, signature, qr_code) VALUES ($1, $2, $3, $4, $5, $6)"#,
             id,
@@ -57,32 +57,18 @@ impl Db {
             qr_code
         )
         .execute(&self.pool)
-        .await
-        .unwrap();
+        .await?;
 
         Ok(())
     }
 
-    pub async fn get_employee(&self, id: Uuid) -> Result<Employee, StatusCode> {
-        let pool = Db::new().await.unwrap();
-
-        let employee = sqlx::query_as::<_, Employee>(
-            "SELECT * FROM employees WHERE id = $1",
+    pub async fn get_employee(&self, id: Uuid) -> Result<Option<Employee>, sqlx::Error> {
+        sqlx::query_as::<_, Employee>(
+            "SELECT id, first_name, last_name, contact, signature, qr_code \
+             FROM employees WHERE id = $1",
         )
         .bind(id)
-        .fetch_optional(&pool.pool)
+        .fetch_optional(&self.pool)
         .await
-        .map_err(|e| {
-            println!("Error: {:?}", e.to_string());
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?
-        .ok_or(StatusCode::NOT_FOUND)?;
-
-        Ok(employee)
-    }
-
-    pub async fn clear_db(&self){
-        
     }
 }
-
